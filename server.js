@@ -1,25 +1,40 @@
+require('dotenv').config();
 const express = require('express');
 const multer = require('multer');
 const path = require('path');
 const cors = require('cors');
-const sharp = require('sharp');
 const axios = require('axios');
-const app = express();
+const fs = require('fs');
+const sanitize = require('sanitize-html');
+const winston = require('winston');
 
-// 启用 CORS，允许前端发送请求
+const app = express();
 app.use(cors());
 
-const storage = multer.diskStorage({
-    destination: (req, file, cb) => {
-        cb(null, 'uploads/');
-    },
-    filename: (req, file, cb) => {
-        cb(null, Date.now() + path.extname(file.originalname));
-    }
+// Logger setup
+const logger = winston.createLogger({
+    transports: [
+        new winston.transports.Console(),
+        new winston.transports.File({ filename: 'server.log' }),
+    ],
 });
 
+// Ensure upload directory exists
+const uploadDir = path.join(__dirname, 'uploads');
+if (!fs.existsSync(uploadDir)) {
+    fs.mkdirSync(uploadDir);
+}
+
+// Multer setup with file size limit
+const storage = multer.diskStorage({
+    destination: uploadDir,
+    filename: (req, file, cb) => {
+        cb(null, Date.now() + path.extname(file.originalname));
+    },
+});
 const upload = multer({
     storage: storage,
+    limits: { fileSize: 5 * 1024 * 1024 }, // 5MB limit
     fileFilter: (req, file, cb) => {
         const fileTypes = /jpeg|jpg|png|gif|webp|heic|heif|tiff/;
         const extName = fileTypes.test(path.extname(file.originalname).toLowerCase());
@@ -32,44 +47,39 @@ const upload = multer({
     }
 });
 
+// API route
 app.post('/upload', upload.single('image'), async (req, res) => {
-    // 如果上传了图片
-    if (req.file) {
-        const filePath = `/uploads/${req.file.filename}`;
-        res.json({ filePath: filePath, message: 'Image upload successful' });
-    }
-    
-    // 如果上传了文本
-    if (req.body) {
-        const texts = Object.keys(req.body).map(key => req.body[key]).join(' ');
-        
-        try {
-            const response = await axios.post('https://api.openai.com/v1/chat/completions', {
-                model: 'gpt-4o-mini',
-                messages: [{ role: 'user', content: `使用英文根据我提供的食物推荐一个食谱: ${texts}` }]
+    try {
+        if (req.file) {
+            const filePath = `/uploads/${req.file.filename}`;
+            res.json({ filePath: filePath, message: 'Image upload successful' });
+        } else if (req.body) {
+            const texts = Object.keys(req.body).map(key => sanitize(req.body[key])).join(' ');
+            const response = await axios.post(process.env.OPENAI_API_URL, {
+                model: process.env.OPENAI_MODEL,
+                messages: [{ role: 'user', content: `使用英文根据我提供的食物推荐一个食谱: ${texts}` }],
             }, {
                 headers: {
-                    'Authorization': `Bearer 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`,
-                    'Content-Type': 'application/json'
-                }
+                    'Authorization': `Bearer ${process.env.OPENAI_API_KEY}`,
+                    'Content-Type': 'application/json',
+                },
             });
-            
             const recipes = response.data.choices[0].message.content;
             res.json({ recipes: recipes, message: 'Text upload and recipe recommendation successful' });
-        } catch (error) {
-            console.error('Error contacting OpenAI:', error.response ? error.response.data : error.message);
-            res.status(500).json({ error: 'Failed to contact OpenAI API' });
+        } else {
+            res.status(400).send('No file or text uploaded');
         }
-    } else {
-        return res.status(400).send('No file or text uploaded');
+    } catch (error) {
+        logger.error('Error:', error.message);
+        res.status(500).json({ error: 'Internal Server Error', details: error.message });
     }
 });
 
-// 静态文件托管（用于访问上传的文件）
+// Static file hosting (for accessing uploaded files)
 app.use('/uploads', express.static(path.join(__dirname, '/uploads')));
 
-// 启动服务器
-const PORT = 5001;
+// Start server
+const PORT = process.env.PORT || 5001;
 app.listen(PORT, () => {
-    console.log(`服务器在 http://localhost:${PORT} 上运行`);
+    logger.info(`Server running at http://localhost:${PORT}`);
 });
