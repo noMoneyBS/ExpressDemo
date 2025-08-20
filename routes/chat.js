@@ -5,8 +5,10 @@ const { generatePrompt } = require("../locales/prompts");
 
 // 如果不是 mock，才加载 Sequelize 模型
 let Preference;
+let RatingService;
 if (process.env.USE_MOCK !== "true") {
   Preference = require("../models/Preference");
+  RatingService = require("../services/ratingService");
 }
 
 // mock
@@ -46,8 +48,26 @@ router.post("/", async (req, res) => {
         }
       );
 
-      const recipes = response.data.choices[0].message.content;
+      let recipes = response.data.choices[0].message.content;
       console.log("🔧 返回的食谱数据:", recipes);
+      
+      // 如果不是mock模式，尝试基于用户评分调整推荐
+      if (process.env.USE_MOCK !== "true" && RatingService) {
+        try {
+          // 解析食谱数据
+          const parsedRecipes = JSON.parse(recipes);
+          
+          // 基于评分调整推荐
+          const adjustedRecipes = await RatingService.adjustRecommendationsByRating(userId, parsedRecipes);
+          
+          // 返回调整后的食谱
+          recipes = JSON.stringify(adjustedRecipes);
+          console.log("🔧 基于评分调整后的食谱数据:", recipes);
+        } catch (error) {
+          console.log("🔧 评分调整失败，使用原始推荐:", error.message);
+        }
+      }
+      
       res.json({ recipes });
     } catch (apiError) {
       console.error("OpenAI API调用失败:", apiError.message);

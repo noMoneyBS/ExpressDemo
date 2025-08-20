@@ -1,5 +1,4 @@
 const { sequelize, DataTypes } = require("../config/database");
-const User = require("./User");
 
 const Preference = sequelize.define("Preference", {
   id: { type: DataTypes.INTEGER, autoIncrement: true, primaryKey: true },
@@ -9,9 +8,5 @@ const Preference = sequelize.define("Preference", {
   vegetarian: { type: DataTypes.BOOLEAN, defaultValue: false },
   cuisine: { type: DataTypes.STRING, defaultValue: "" },
 });
-
-// 建立关联：一个用户有一个偏好
-User.hasOne(Preference, { foreignKey: "userId" });
-Preference.belongsTo(User, { foreignKey: "userId" });
 
 module.exports = Preference;

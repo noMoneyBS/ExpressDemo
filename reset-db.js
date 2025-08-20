@@ -18,6 +18,10 @@ async function resetDatabase() {
     console.log('📋 表结构已更新：');
     console.log('   - Users 表包含: id, username, email, password, createdAt, updatedAt');
     console.log('   - Preferences 表包含: id, userId, lowSalt, lowOil, spicy, vegetarian, cuisine, createdAt, updatedAt');
+    console.log('   - UserPreferences 表包含: id, userId, preferenceType, preferenceValue, strength, lastUpdated, usageCount, createdAt, updatedAt');
+    console.log('   - RecipeRatings 表包含: id, userId, recipeName, ingredients, tags, rating, comment, tried, triedDate, difficultyRating, tasteRating, healthRating, createdAt, updatedAt');
+    console.log('   - CommunityRecipes 表包含: id, authorId, name, description, cookingTime, difficulty, servings, ingredients, steps, nutrition, tips, tags, imageUrl, authorRating, authorComment, isPublic, likes, favorites, tryCount, averageRating, ratingCount, status, createdAt, updatedAt');
+    console.log('   - UserInteractions 表包含: id, userId, recipeId, interactionType, isActive, createdAt, updatedAt');
     
   } catch (error) {
     console.error('❌ 数据库重置失败:', error.message);
