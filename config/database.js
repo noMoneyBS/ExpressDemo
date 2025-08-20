@@ -1,8 +1,8 @@
-const { Sequelize } = require("sequelize");
+const { Sequelize, DataTypes } = require("sequelize");
 
 const sequelize = new Sequelize(process.env.DATABASE_URL, {
   dialect: "postgres",
-  logging: false, // 设置 true 可以调试 SQL
+  logging: false, // 关闭SQL日志
 });
 
-module.exports = sequelize;
+module.exports = { sequelize, DataTypes };

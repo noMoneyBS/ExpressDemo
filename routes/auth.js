@@ -8,7 +8,7 @@ if (process.env.USE_MOCK !== "true") {
 }
 
 // Mock 用户随便登录
-const { addMockUser } = require("../mocks/users");
+const { addMockUser, getMockUserByEmail } = require("../mocks/users");
 
 // 注册（Mock 模式可选，直接通过也行）
 router.post("/register", async (req, res) => {
@@ -16,14 +16,42 @@ router.post("/register", async (req, res) => {
 
   try {
     if (process.env.USE_MOCK === "true") {
-      // mock 模式：不验证，直接返回一个用户 id
+      // mock 模式：检查是否已存在
+      const existingUser = getMockUserByEmail(email);
+      if (existingUser) {
+        return res.status(400).json({ error: "该邮箱已被注册" });
+      }
       const user = addMockUser(username || "mockUser", email || "mock@example.com", password || "123456");
-      return res.json({ message: "注册成功 (mock)", userId: user.id });
+      return res.json({ 
+        message: "注册成功 (mock)", 
+        userId: user.id,
+        user: {
+          id: user.id,
+          email: user.email,
+          username: user.username
+        }
+      });
     } else {
-      // 数据库模式
+      // 数据库模式：检查是否已存在
+      const existingUser = await User.findOne({ 
+        where: { 
+          [require('sequelize').Op.or]: [{ email }, { username }] 
+        } 
+      });
+      if (existingUser) {
+        return res.status(400).json({ error: "用户名或邮箱已被注册" });
+      }
       const hashed = await bcrypt.hash(password, 10);
       const user = await User.create({ username, email, password: hashed });
-      return res.json({ message: "注册成功", userId: user.id });
+      return res.json({ 
+        message: "注册成功", 
+        userId: user.id,
+        user: {
+          id: user.id,
+          email: user.email,
+          username: user.username
+        }
+      });
     }
   } catch (err) {
     console.error(err);
@@ -37,23 +65,50 @@ router.post("/login", async (req, res) => {
   
     try {
       if (process.env.USE_MOCK === "true") {
-        // mock 模式：随便账号密码都能登录
-        const fakeUserId = Math.floor(Math.random() * 10000) + 1;
+        // mock 模式：检查注册的用户信息
+        const mockUser = getMockUserByEmail(email);
+        if (!mockUser) {
+          return res.status(400).json({ error: "用户不存在" });
+        }
+        
+        // 检查密码（mock模式下直接比较明文）
+        if (mockUser.password !== password) {
+          return res.status(400).json({ error: "密码错误" });
+        }
   
         // 确保偏好数据存在
         const { getMockPreference } = require("../mocks/preferences");
-        getMockPreference(fakeUserId);
+        getMockPreference(mockUser.id);
   
-        return res.json({ message: "登录成功 (mock)", userId: fakeUserId });
+        return res.json({ 
+          message: "登录成功 (mock)", 
+          userId: mockUser.id,
+          user: { 
+            id: mockUser.id, 
+            email: mockUser.email,
+            username: mockUser.username
+          }
+        });
       } else {
         // 数据库模式
-        const user = await User.findOne({ where: { email } });
+        const user = await User.findOne({ 
+          where: { email },
+          attributes: ['id', 'username', 'email', 'password'] // 明确包含password字段
+        });
         if (!user) return res.status(400).json({ error: "用户不存在" });
   
         const valid = await bcrypt.compare(password, user.password);
         if (!valid) return res.status(400).json({ error: "密码错误" });
   
-        return res.json({ message: "登录成功", userId: user.id });
+        return res.json({ 
+          message: "登录成功", 
+          userId: user.id,
+          user: {
+            id: user.id,
+            email: user.email,
+            username: user.username
+          }
+        });
       }
     } catch (err) {
       console.error(err);
