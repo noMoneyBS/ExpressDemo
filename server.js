@@ -35,6 +35,8 @@ sequelize
 app.use("/auth", require("./routes/auth"));
 app.use("/preference", require("./routes/preference"));
 app.use("/chat", require("./routes/chat"));
+app.use("/image", require("./routes/image"));
+app.use("/interactive", require("./routes/interactive"));
 
 const PORT = process.env.PORT || 5001;
 app.listen(PORT, () => {
