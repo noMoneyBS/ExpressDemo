@@ -32,23 +32,50 @@ router.post("/", async (req, res) => {
     const prompt = generatePrompt(language, message, preferences, { scene, budget });
     console.log("🔧 使用语言:", language, "生成食谱推荐");
 
-    // 调用 GPT
+    // 调用 AI API
     try {
-      const response = await axios.post(
-        process.env.OPENAI_API_URL,
-        {
+      // 检测是否为 Gemini API
+      const isGemini = process.env.OPENAI_API_URL && process.env.OPENAI_API_URL.includes('generativelanguage.googleapis.com');
+      
+      let requestData, headers;
+      
+      if (isGemini) {
+        // Gemini API 格式
+        requestData = {
+          contents: [{
+            parts: [{
+              text: prompt
+            }]
+          }]
+        };
+        headers = {
+          "Content-Type": "application/json",
+        };
+      } else {
+        // OpenAI API 格式
+        requestData = {
           model: process.env.OPENAI_MODEL,
           messages: [{ role: "user", content: prompt }],
-        },
-        {
-          headers: {
-            Authorization: `Bearer ${process.env.OPENAI_API_KEY}`,
-            "Content-Type": "application/json",
-          },
-        }
+        };
+        headers = {
+          Authorization: `Bearer ${process.env.OPENAI_API_KEY}`,
+          "Content-Type": "application/json",
+        };
+      }
+      
+      const response = await axios.post(
+        process.env.OPENAI_API_URL,
+        requestData,
+        { headers }
       );
 
-      let recipes = response.data.choices[0].message.content;
+      // 根据 API 类型解析响应
+      let recipes;
+      if (isGemini) {
+        recipes = response.data.candidates[0].content.parts[0].text;
+      } else {
+        recipes = response.data.choices[0].message.content;
+      }
       console.log("🔧 返回的食谱数据:", recipes);
       
       // 如果不是mock模式，尝试基于用户评分调整推荐

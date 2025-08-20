@@ -128,21 +128,48 @@ class InteractiveChatService {
       // 构建提示词
       const prompt = this.buildPersonalizedPrompt(userPreferences, language);
       
-      const response = await axios.post(
-        process.env.OPENAI_API_URL || 'https://api.openai.com/v1/chat/completions',
-        {
+      // 检测是否为 Gemini API
+      const isGemini = process.env.OPENAI_API_URL && process.env.OPENAI_API_URL.includes('generativelanguage.googleapis.com');
+      
+      let requestData, headers;
+      
+      if (isGemini) {
+        // Gemini API 格式
+        requestData = {
+          contents: [{
+            parts: [{
+              text: prompt
+            }]
+          }]
+        };
+        headers = {
+          "Content-Type": "application/json",
+        };
+      } else {
+        // OpenAI API 格式
+        requestData = {
           model: process.env.OPENAI_MODEL || "gpt-3.5-turbo",
           messages: [{ role: "user", content: prompt }],
-        },
-        {
-          headers: {
-            Authorization: `Bearer ${process.env.OPENAI_API_KEY}`,
-            "Content-Type": "application/json",
-          },
-        }
+        };
+        headers = {
+          Authorization: `Bearer ${process.env.OPENAI_API_KEY}`,
+          "Content-Type": "application/json",
+        };
+      }
+      
+      const response = await axios.post(
+        process.env.OPENAI_API_URL || 'https://api.openai.com/v1/chat/completions',
+        requestData,
+        { headers }
       );
 
-      const recipes = response.data.choices[0].message.content;
+      // 根据 API 类型解析响应
+      let recipes;
+      if (isGemini) {
+        recipes = response.data.candidates[0].content.parts[0].text;
+      } else {
+        recipes = response.data.choices[0].message.content;
+      }
       console.log('✅ 个性化食谱生成成功');
       
       return {
